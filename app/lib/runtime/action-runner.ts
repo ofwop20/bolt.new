@@ -43,6 +43,7 @@ export class ActionRunner {
     this.#webcontainer = webcontainerPromise;
   }
 
+  // 只需要修改 addAction 方法
   addAction(data: ActionCallbackData) {
     const { actionId } = data;
 
@@ -55,6 +56,11 @@ export class ActionRunner {
     }
 
     const abortController = new AbortController();
+
+    // For file actions, create the file immediately when the action is added
+    if (data.action.type === 'file') {
+      this.#createEmptyFile(data.action.filePath);
+    }
 
     this.actions.setKey(actionId, {
       ...data.action,
@@ -70,6 +76,27 @@ export class ActionRunner {
     this.#currentExecutionPromise.then(() => {
       this.#updateAction(actionId, { status: 'running' });
     });
+  }
+
+  // Add this helper method
+  async #createEmptyFile(filePath: string) {
+    const webcontainer = await this.#webcontainer;
+    const folder = nodePath.dirname(filePath).replace(/\/+$/g, '');
+
+    if (folder !== '.') {
+      try {
+        await webcontainer.fs.mkdir(folder, { recursive: true });
+      } catch (error) {
+        logger.error('Failed to create folder\n\n', error);
+      }
+    }
+
+    try {
+      await webcontainer.fs.writeFile(filePath, '');
+      logger.debug(`Empty file created ${filePath}`);
+    } catch (error) {
+      logger.error('Failed to create empty file\n\n', error);
+    }
   }
 
   async runAction(data: ActionCallbackData) {

@@ -29,6 +29,7 @@ export interface ParserCallbacks {
   onArtifactClose?: ArtifactCallback;
   onActionOpen?: ActionCallback;
   onActionClose?: ActionCallback;
+  onActionContent?: ActionCallback;
 }
 
 interface ElementFactoryProps {
@@ -89,7 +90,18 @@ export class StreamingMessageParser {
           const currentAction = state.currentAction;
 
           if (closeIndex !== -1) {
-            currentAction.content += input.slice(i, closeIndex);
+            const newContent = input.slice(i, closeIndex);
+            currentAction.content = newContent;
+
+            // Trigger content update if there's new content and it's a file action
+            if (newContent.length > 0 && 'type' in currentAction && currentAction.type === 'file') {
+              this._options.callbacks?.onActionContent?.({
+                artifactId: currentArtifact.id,
+                messageId,
+                actionId: String(state.actionId - 1),
+                action: currentAction as BoltAction,
+              });
+            }
 
             let content = currentAction.content.trim();
 
@@ -102,14 +114,7 @@ export class StreamingMessageParser {
             this._options.callbacks?.onActionClose?.({
               artifactId: currentArtifact.id,
               messageId,
-
-              /**
-               * We decrement the id because it's been incremented already
-               * when `onActionOpen` was emitted to make sure the ids are
-               * the same.
-               */
               actionId: String(state.actionId - 1),
-
               action: currentAction as BoltAction,
             });
 
@@ -118,6 +123,17 @@ export class StreamingMessageParser {
 
             i = closeIndex + ARTIFACT_ACTION_TAG_CLOSE.length;
           } else {
+            // No closing tag found yet, process available content
+            const newContent = input.slice(i);
+            if (newContent.length > 0 && 'type' in currentAction && currentAction.type === 'file') {
+              currentAction.content = newContent;
+              this._options.callbacks?.onActionContent?.({
+                artifactId: currentArtifact.id,
+                messageId,
+                actionId: String(state.actionId - 1),
+                action: currentAction as BoltAction,
+              });
+            }
             break;
           }
         } else {

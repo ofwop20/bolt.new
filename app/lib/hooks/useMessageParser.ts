@@ -10,33 +10,27 @@ const messageParser = new StreamingMessageParser({
   callbacks: {
     onArtifactOpen: (data) => {
       logger.trace('onArtifactOpen', data);
-
       workbenchStore.showWorkbench.set(true);
       workbenchStore.addArtifact(data);
     },
     onArtifactClose: (data) => {
       logger.trace('onArtifactClose');
-
       workbenchStore.updateArtifact(data, { closed: true });
     },
     onActionOpen: (data) => {
       logger.trace('onActionOpen', data.action);
-
-      // we only add shell actions when when the close tag got parsed because only then we have the content
-      if (data.action.type !== 'shell') {
-        workbenchStore.addAction(data);
-      }
+      workbenchStore.addAction(data);
     },
     onActionClose: (data) => {
       logger.trace('onActionClose', data.action);
-
-      if (data.action.type === 'shell') {
-        workbenchStore.addAction(data);
-      }
-
       workbenchStore.runAction(data);
     },
-  },
+    onActionContent: (data) => {
+      if (data.action.type === 'file') {
+        workbenchStore.setCurrentDocumentContent(data.action.content);
+      }
+    },
+  }
 });
 
 export function useMessageParser() {
